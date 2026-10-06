@@ -32,6 +32,7 @@ namespace Othello.Tests
             Assert.That(view.TurnText, Is.EqualTo("あなたの手番（黒）"));
             Assert.That(view.CountText, Is.EqualTo("黒（あなた）：2    白（CPU）：2"));
             Assert.That(view.PassText, Is.Empty);
+            Assert.That(view.ResultText, Is.Empty);
 
             Assert.That(game.TryPlaceStone(new BoardPosition(2, 3), StoneColor.Black), Is.True);
             view.Render(game);
@@ -117,7 +118,53 @@ namespace Othello.Tests
             view.Render(endedGame);
             Assert.That(view.TurnText, Is.EqualTo("対局終了"));
             Assert.That(view.PassText, Is.Empty);
-            Assert.That(view.CountText, Is.EqualTo("黒（あなた）：1    白（CPU）：1"));
+            Assert.That(view.CountText, Is.EqualTo("最終石数　黒（あなた）：1    白（CPU）：1"));
+            Assert.That(view.ResultText, Is.EqualTo("引き分けです"));
+        }
+
+        [TestCase(35, "あなたの勝ち！")]
+        [TestCase(29, "CPUの勝ち！")]
+        [TestCase(32, "引き分けです")]
+        public void EndedGameShowsFinalCountsAndAllThreeOutcomes(int blackCount, string expectedResult)
+        {
+            var cells = new StoneColor[8, 8];
+            for (int index = 0; index < 64; index++)
+                cells[index / 8, index % 8] = index < blackCount ? StoneColor.Black : StoneColor.White;
+            view.Render(new OthelloGame(new BoardState(cells)));
+
+            Assert.That(view.ResultText, Is.EqualTo(expectedResult));
+            Assert.That(view.CountText, Is.EqualTo(
+                $"最終石数　黒（あなた）：{blackCount}    白（CPU）：{64 - blackCount}"));
+            Assert.That(view.PassText, Is.Empty);
+            var label = view.transform.Find("Game Status Canvas/Final Result").GetComponent<Text>();
+            Assert.That(label.gameObject.activeInHierarchy, Is.True);
+            Assert.That(label.raycastTarget, Is.False);
+            Canvas.ForceUpdateCanvases();
+            Assert.That(label.cachedTextGenerator.vertexCount, Is.GreaterThan(0));
+            foreach (char character in expectedResult)
+                Assert.That(label.font.HasCharacter(character), Is.True);
+        }
+
+        [UnityTest]
+        public IEnumerator FinalResultSurvivesPassTimerAndIsHiddenForAnUnfinishedGame()
+        {
+            typeof(GameStatusView).GetField("passDisplaySeconds", BindingFlags.Instance | BindingFlags.NonPublic)
+                .SetValue(view, 0.1f);
+            var game = CreatePassGame(StoneColor.Black);
+            game.TryPlaceStone(new BoardPosition(7, 0), StoneColor.Black);
+            view.Render(game);
+            var cells = new StoneColor[8, 8];
+            cells[0, 0] = StoneColor.Black;
+            view.Render(new OthelloGame(new BoardState(cells)));
+            yield return new WaitForSecondsRealtime(0.2f);
+            yield return null;
+            Assert.That(view.ResultText, Is.EqualTo("あなたの勝ち！"));
+            Assert.That(view.PassText, Is.Empty);
+
+            view.Render(new OthelloGame());
+            Assert.That(view.ResultText, Is.Empty);
+            Assert.That(view.transform.Find("Game Status Canvas/Final Result").gameObject.activeSelf, Is.False);
+            Assert.That(view.CountText, Is.EqualTo("黒（あなた）：2    白（CPU）：2"));
         }
 
         private void AssertCounts(OthelloGame game)

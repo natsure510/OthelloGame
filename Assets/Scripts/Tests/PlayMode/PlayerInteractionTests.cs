@@ -230,10 +230,23 @@ namespace Othello.Tests
             Assert.That(OthelloRules.GetLegalMoves(controller.Board, StoneColor.Black), Is.Empty);
             Assert.That(OthelloRules.GetLegalMoves(controller.Board, StoneColor.White), Is.Empty);
             var endedBoard = Snapshot(controller.Board);
+            string finalResult = statusView.ResultText;
+            string finalCounts = statusView.CountText;
 
             yield return ClickCell(new BoardPosition(0, 0));
             Assert.That(controller.TryPlayPlayerMove(new BoardPosition(0, 0)), Is.False);
             CollectionAssert.AreEqual(endedBoard, Snapshot(controller.Board));
+            Assert.That(statusView.ResultText, Is.EqualTo(finalResult));
+            Assert.That(statusView.CountText, Is.EqualTo(finalCounts));
+            Canvas.ForceUpdateCanvases();
+            Text resultLabel = statusView.transform.Find("Game Status Canvas/Final Result").GetComponent<Text>();
+            Assert.That(resultLabel.gameObject.activeInHierarchy, Is.True);
+            Assert.That(resultLabel.cachedTextGenerator.vertexCount, Is.GreaterThan(0));
+            var corners = new Vector3[4];
+            resultLabel.rectTransform.GetWorldCorners(corners);
+            float boardTop = boardCamera.WorldToScreenPoint(
+                boardView.transform.TransformPoint(new Vector3(0f, 4f, 0f))).y;
+            Assert.That(corners[0].y, Is.GreaterThan(boardTop));
         }
 
         [UnityTest]
@@ -407,8 +420,15 @@ namespace Othello.Tests
             Assert.That(statusView.TurnText, Is.EqualTo(controller.IsGameOver ? "対局終了" :
                 controller.CurrentTurn == StoneColor.Black ? "あなたの手番（黒）" : "CPUの手番（白）"));
             Assert.That(statusView.CountText, Is.EqualTo(
-                $"黒（あなた）：{controller.Board.CountStones(StoneColor.Black)}    "
+                (controller.IsGameOver ? "最終石数　" : string.Empty)
+                + $"黒（あなた）：{controller.Board.CountStones(StoneColor.Black)}    "
                 + $"白（CPU）：{controller.Board.CountStones(StoneColor.White)}"));
+            int blackCount = controller.Board.CountStones(StoneColor.Black);
+            int whiteCount = controller.Board.CountStones(StoneColor.White);
+            string expectedResult = !controller.IsGameOver ? string.Empty
+                : blackCount > whiteCount ? "あなたの勝ち！"
+                : whiteCount > blackCount ? "CPUの勝ち！" : "引き分けです";
+            Assert.That(statusView.ResultText, Is.EqualTo(expectedResult));
             int visibleStones = 0;
             foreach (CellView cell in boardView.GetComponentsInChildren<CellView>())
             {

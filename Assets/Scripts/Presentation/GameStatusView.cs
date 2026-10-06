@@ -4,7 +4,7 @@ using UnityEngine.UI;
 
 namespace Othello
 {
-    /// <summary>Displays turn, stone counts and a temporary forced-pass notification.</summary>
+    /// <summary>Displays turn, stone counts, forced passes and the final result.</summary>
     public sealed class GameStatusView : MonoBehaviour
     {
         [SerializeField] private Font font;
@@ -14,12 +14,14 @@ namespace Othello
         private Text turnLabel;
         private Text countLabel;
         private Text passLabel;
+        private Text resultLabel;
         private Font generatedFont;
         private float passExpiresAt;
 
         public string TurnText => turnLabel == null ? string.Empty : turnLabel.text;
         public string CountText => countLabel == null ? string.Empty : countLabel.text;
         public string PassText => passLabel == null ? string.Empty : passLabel.text;
+        public string ResultText => resultLabel == null ? string.Empty : resultLabel.text;
 
         public void Render(OthelloGame game)
         {
@@ -40,16 +42,28 @@ namespace Othello
 
             if (game.IsGameOver)
             {
+                var result = new GameResult(game);
+                countLabel.text = $"最終石数　黒（あなた）：{result.BlackCount}    白（CPU）：{result.WhiteCount}";
+                resultLabel.text = result.Winner == StoneColor.Black ? "あなたの勝ち！"
+                    : result.Winner == StoneColor.White ? "CPUの勝ち！" : "引き分けです";
                 passLabel.text = string.Empty;
             }
-            else if (game.LastPassedColor != StoneColor.Empty)
+            else
             {
-                passLabel.text = game.LastPassedColor == StoneColor.Black
-                    ? "黒（あなた）は置ける場所がないためパスしました"
-                    : "白（CPU）は置ける場所がないためパスしました";
-                // Keep the notice readable even if the next CPU move arrives immediately.
-                passExpiresAt = Time.unscaledTime + Mathf.Max(0.1f, passDisplaySeconds);
+                resultLabel.text = string.Empty;
+                if (game.LastPassedColor != StoneColor.Empty)
+                {
+                    passLabel.text = game.LastPassedColor == StoneColor.Black
+                        ? "黒（あなた）は置ける場所がないためパスしました"
+                        : "白（CPU）は置ける場所がないためパスしました";
+                    // Keep the notice readable even if the next CPU move arrives immediately.
+                    passExpiresAt = Time.unscaledTime + Mathf.Max(0.1f, passDisplaySeconds);
+                }
             }
+
+            // Share the third row so the result never overlaps a pass notification.
+            passLabel.gameObject.SetActive(!game.IsGameOver);
+            resultLabel.gameObject.SetActive(game.IsGameOver);
         }
 
         private void Update()
@@ -95,6 +109,8 @@ namespace Othello
             turnLabel = CreateLabel("Turn", displayFont, 28, 10f, 36f, Color.white);
             countLabel = CreateLabel("Stone Counts", displayFont, 24, 46f, 32f, Color.white);
             passLabel = CreateLabel("Pass Notice", displayFont, 22, 78f, 30f,
+                new Color(1f, 0.9f, 0.45f));
+            resultLabel = CreateLabel("Final Result", displayFont, 24, 78f, 30f,
                 new Color(1f, 0.9f, 0.45f));
         }
 
