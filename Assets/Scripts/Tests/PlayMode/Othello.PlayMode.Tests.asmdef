@@ -1,0 +1,12 @@
+{
+    "name": "Othello.PlayMode.Tests",
+    "rootNamespace": "Othello.Tests",
+    "references": [
+        "Othello.Core",
+        "Othello.Unity",
+        "Unity.InputSystem"
+    ],
+    "optionalUnityReferences": [
+        "TestAssemblies"
+    ]
+}

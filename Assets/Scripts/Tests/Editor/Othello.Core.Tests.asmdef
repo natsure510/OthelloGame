@@ -1,0 +1,13 @@
+{
+    "name": "Othello.Core.Tests",
+    "rootNamespace": "Othello.Tests",
+    "references": [
+        "Othello.Core"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "optionalUnityReferences": [
+        "TestAssemblies"
+    ]
+}

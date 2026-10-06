@@ -1,0 +1,5 @@
+{
+    "name": "Othello.Core",
+    "rootNamespace": "Othello",
+    "noEngineReferences": true
+}

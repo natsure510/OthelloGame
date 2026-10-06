@@ -1,0 +1,8 @@
+{
+    "name": "Othello.Unity",
+    "rootNamespace": "Othello",
+    "references": [
+        "Othello.Core",
+        "Unity.InputSystem"
+    ]
+}
