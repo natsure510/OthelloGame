@@ -12,6 +12,11 @@ namespace Othello
 
         public BoardState Board => game.Board;
         public StoneColor CurrentTurn => game.CurrentTurn;
+        public bool IsGameOver => game.IsGameOver;
+        public StoneColor LastPassedColor => game.LastPassedColor;
+
+        private bool CanAcceptPlayerInput => game != null && !game.IsGameOver
+            && game.CurrentTurn == StoneColor.Black;
 
         private void Awake()
         {
@@ -34,7 +39,7 @@ namespace Othello
             }
 
             boardInput.CellClicked += HandleCellClicked;
-            boardInput.SetInputEnabled(game.CurrentTurn == StoneColor.Black);
+            boardInput.SetInputEnabled(CanAcceptPlayerInput);
         }
 
         private void OnDisable()
@@ -48,7 +53,7 @@ namespace Othello
 
         public bool TryPlayPlayerMove(BoardPosition position)
         {
-            if (!isActiveAndEnabled || game == null || game.CurrentTurn != StoneColor.Black)
+            if (!isActiveAndEnabled || !CanAcceptPlayerInput)
             {
                 return false;
             }
@@ -59,7 +64,7 @@ namespace Othello
             }
 
             boardView.Render(game.Board);
-            boardInput.SetInputEnabled(game.CurrentTurn == StoneColor.Black);
+            boardInput.SetInputEnabled(CanAcceptPlayerInput);
             return true;
         }
 
