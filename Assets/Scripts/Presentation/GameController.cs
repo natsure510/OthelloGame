@@ -8,6 +8,7 @@ namespace Othello
     {
         [SerializeField] private BoardView boardView;
         [SerializeField] private BoardInput boardInput;
+        [SerializeField] private GameStatusView statusView;
         [SerializeField, Min(0f)] private float cpuMoveDelay = 0.3f;
 
         private OthelloGame game;
@@ -99,6 +100,10 @@ namespace Othello
         private void RefreshBoard()
         {
             boardView.Render(game.Board);
+            if (statusView != null)
+            {
+                statusView.Render(game);
+            }
         }
 
         private void HandleCellClicked(BoardPosition position)

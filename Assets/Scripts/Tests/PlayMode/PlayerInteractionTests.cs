@@ -6,6 +6,7 @@ using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.LowLevel;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
+using UnityEngine.UI;
 
 namespace Othello.Tests
 {
@@ -17,6 +18,7 @@ namespace Othello.Tests
         private GameController controller;
         private BoardView boardView;
         private BoardInput boardInput;
+        private GameStatusView statusView;
         private Camera boardCamera;
         private InputSettings.UpdateMode previousUpdateMode;
         private InputSettings.BackgroundBehavior previousBackgroundBehavior;
@@ -56,6 +58,7 @@ namespace Othello.Tests
                     controller = foundController;
                     boardView = root.GetComponent<BoardView>();
                     boardInput = root.GetComponent<BoardInput>();
+                    statusView = root.GetComponent<GameStatusView>();
                 }
 
                 if (root.TryGetComponent(out Camera foundCamera))
@@ -67,6 +70,7 @@ namespace Othello.Tests
             Assert.That(controller, Is.Not.Null, "The sample scene must contain the game controller.");
             Assert.That(boardView, Is.Not.Null);
             Assert.That(boardInput, Is.Not.Null);
+            Assert.That(statusView, Is.Not.Null);
             Assert.That(boardCamera, Is.Not.Null);
             boardInput.CellClicked += RecordCellClicked;
         }
@@ -106,6 +110,32 @@ namespace Othello.Tests
         {
             Assert.That(boardView.GetComponentsInChildren<CellView>().Length, Is.EqualTo(64));
             AssertInitialState();
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator StatusHeaderIsVisibleAboveTheBoardWithoutBlockingClicks()
+        {
+            Canvas.ForceUpdateCanvases();
+            var labels = statusView.GetComponentsInChildren<Text>();
+            Assert.That(labels.Length, Is.EqualTo(3));
+            float boardTop = boardCamera.WorldToScreenPoint(
+                boardView.transform.TransformPoint(new Vector3(0f, 4f, 0f))).y;
+            foreach (Text label in labels)
+            {
+                var corners = new Vector3[4];
+                label.rectTransform.GetWorldCorners(corners);
+                Assert.That(corners[0].y, Is.GreaterThan(boardTop),
+                    "All status rows must stay above the board.");
+                Assert.That(corners[1].y, Is.LessThanOrEqualTo(Screen.height));
+                Assert.That(label.raycastTarget, Is.False);
+                if (!string.IsNullOrEmpty(label.text))
+                {
+                    Assert.That(label.cachedTextGenerator.vertexCount, Is.GreaterThan(0),
+                        "The status text must generate visible geometry.");
+                }
+            }
+
             yield return null;
         }
 
@@ -374,6 +404,11 @@ namespace Othello.Tests
 
         private void AssertDisplayMatchesBoard()
         {
+            Assert.That(statusView.TurnText, Is.EqualTo(controller.IsGameOver ? "対局終了" :
+                controller.CurrentTurn == StoneColor.Black ? "あなたの手番（黒）" : "CPUの手番（白）"));
+            Assert.That(statusView.CountText, Is.EqualTo(
+                $"黒（あなた）：{controller.Board.CountStones(StoneColor.Black)}    "
+                + $"白（CPU）：{controller.Board.CountStones(StoneColor.White)}"));
             int visibleStones = 0;
             foreach (CellView cell in boardView.GetComponentsInChildren<CellView>())
             {

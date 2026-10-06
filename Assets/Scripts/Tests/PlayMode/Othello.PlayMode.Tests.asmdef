@@ -4,7 +4,8 @@
     "references": [
         "Othello.Core",
         "Othello.Unity",
-        "Unity.InputSystem"
+        "Unity.InputSystem",
+        "UnityEngine.UI"
     ],
     "optionalUnityReferences": [
         "TestAssemblies"

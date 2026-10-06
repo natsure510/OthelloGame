@@ -3,6 +3,7 @@
     "rootNamespace": "Othello",
     "references": [
         "Othello.Core",
-        "Unity.InputSystem"
+        "Unity.InputSystem",
+        "UnityEngine.UI"
     ]
 }
