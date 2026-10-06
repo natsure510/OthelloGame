@@ -110,26 +110,100 @@ namespace Othello.Tests
         }
 
         [UnityTest]
-        public IEnumerator LegalMouseClickPlacesAndFlipsStonesThenEndsPlayerTurn()
+        public IEnumerator LegalMouseClickUpdatesBoardAndBlocksInputUntilCpuReturnsTheTurn()
         {
-            yield return ClickCell(new BoardPosition(2, 3));
+            StoneColor[,] boardAfterPlayer = null;
+            IReadOnlyList<BoardPosition> whiteMoves = null;
+            float previousTimeScale = Time.timeScale;
+            // Pause the CPU's timed wait so the blocked-click check cannot race its move.
+            Time.timeScale = 0f;
+            try
+            {
+                yield return ClickCell(new BoardPosition(2, 3));
+                Assert.That(controller.Board.CountStones(StoneColor.Black), Is.EqualTo(4));
+                Assert.That(controller.Board.CountStones(StoneColor.White), Is.EqualTo(1));
+                Assert.That(controller.CurrentTurn, Is.EqualTo(StoneColor.White));
+                Assert.That(controller.IsCpuThinking, Is.True);
+                Assert.That(boardInput.InputEnabled, Is.False);
+                AssertDisplayMatchesBoard();
+                boardAfterPlayer = Snapshot(controller.Board);
+                whiteMoves = OthelloRules.GetLegalMoves(controller.Board, StoneColor.White);
 
-            Assert.That(controller.Board.GetStone(new BoardPosition(2, 3)), Is.EqualTo(StoneColor.Black));
-            Assert.That(controller.Board.GetStone(new BoardPosition(3, 3)), Is.EqualTo(StoneColor.Black));
-            Assert.That(controller.Board.CountStones(StoneColor.Black), Is.EqualTo(4));
-            Assert.That(controller.Board.CountStones(StoneColor.White), Is.EqualTo(1));
+                var secondBlackMove = new BoardPosition(4, 5);
+                Assert.That(OthelloRules.IsLegalMove(controller.Board, secondBlackMove, StoneColor.Black), Is.True);
+                Assert.That(controller.TryPlayPlayerMove(secondBlackMove), Is.False);
+                yield return ClickCell(secondBlackMove);
+                CollectionAssert.AreEqual(boardAfterPlayer, Snapshot(controller.Board));
+            }
+            finally
+            {
+                Time.timeScale = previousTimeScale;
+            }
+
+            yield return WaitForCpu();
+            AssertCpuMoveMatchesLegalWhiteMove(boardAfterPlayer, whiteMoves);
+            Assert.That(controller.CurrentTurn, Is.EqualTo(StoneColor.Black));
+            Assert.That(boardInput.InputEnabled, Is.True);
+            AssertDisplayMatchesBoard();
+        }
+
+        [UnityTest]
+        public IEnumerator DisablingControllerCancelsThePendingCpuMoveAndEnablingResumesOnce()
+        {
+            Assert.That(controller.TryPlayPlayerMove(new BoardPosition(2, 3)), Is.True);
+            Assert.That(controller.IsCpuThinking, Is.True);
+            var beforeCpu = Snapshot(controller.Board);
+            var whiteMoves = OthelloRules.GetLegalMoves(controller.Board, StoneColor.White);
+
+            controller.enabled = false;
+            yield return new WaitForSeconds(0.4f);
+
+            Assert.That(controller.IsCpuThinking, Is.False);
             Assert.That(controller.CurrentTurn, Is.EqualTo(StoneColor.White));
             Assert.That(boardInput.InputEnabled, Is.False);
-            AssertDisplayMatchesBoard();
+            CollectionAssert.AreEqual(beforeCpu, Snapshot(controller.Board));
 
-            // A legal white move must not be accepted as a second player click.
-            yield return ClickCell(new BoardPosition(2, 2));
+            controller.enabled = true;
+            Assert.That(controller.IsCpuThinking, Is.True);
+            yield return WaitForCpu();
 
-            Assert.That(controller.Board.GetStone(new BoardPosition(2, 2)), Is.EqualTo(StoneColor.Empty));
-            Assert.That(controller.Board.CountStones(StoneColor.Black), Is.EqualTo(4));
-            Assert.That(controller.Board.CountStones(StoneColor.White), Is.EqualTo(1));
-            Assert.That(controller.CurrentTurn, Is.EqualTo(StoneColor.White));
+            AssertCpuMoveMatchesLegalWhiteMove(beforeCpu, whiteMoves);
+            Assert.That(controller.CurrentTurn, Is.EqualTo(StoneColor.Black));
+            Assert.That(boardInput.InputEnabled, Is.True);
             AssertDisplayMatchesBoard();
+        }
+
+        [UnityTest]
+        public IEnumerator PlayerAndCpuCanCompleteAGameAndRejectClicksAfterTheEnd()
+        {
+            int playerMoves = 0;
+            while (!controller.IsGameOver)
+            {
+                Assert.That(controller.CurrentTurn, Is.EqualTo(StoneColor.Black));
+                Assert.That(boardInput.InputEnabled, Is.True);
+                var legalMoves = OthelloRules.GetLegalMoves(controller.Board, StoneColor.Black);
+                Assert.That(legalMoves, Is.Not.Empty);
+                int emptyBefore = controller.Board.CountStones(StoneColor.Empty);
+
+                yield return ClickCell(legalMoves[0]);
+                yield return WaitForCpu();
+
+                Assert.That(controller.Board.CountStones(StoneColor.Empty), Is.LessThan(emptyBefore));
+                AssertDisplayMatchesBoard();
+                playerMoves++;
+                Assert.That(playerMoves, Is.LessThanOrEqualTo(60));
+            }
+
+            Assert.That(controller.CurrentTurn, Is.EqualTo(StoneColor.Empty));
+            Assert.That(controller.IsCpuThinking, Is.False);
+            Assert.That(boardInput.InputEnabled, Is.False);
+            Assert.That(OthelloRules.GetLegalMoves(controller.Board, StoneColor.Black), Is.Empty);
+            Assert.That(OthelloRules.GetLegalMoves(controller.Board, StoneColor.White), Is.Empty);
+            var endedBoard = Snapshot(controller.Board);
+
+            yield return ClickCell(new BoardPosition(0, 0));
+            Assert.That(controller.TryPlayPlayerMove(new BoardPosition(0, 0)), Is.False);
+            CollectionAssert.AreEqual(endedBoard, Snapshot(controller.Board));
         }
 
         [UnityTest]
@@ -176,8 +250,61 @@ namespace Othello.Tests
             }
 
             yield return ClickCell(new BoardPosition(2, 3));
+            yield return WaitForCpu();
             Assert.That(controller.Board.GetStone(new BoardPosition(2, 3)), Is.EqualTo(StoneColor.Black));
-            Assert.That(controller.CurrentTurn, Is.EqualTo(StoneColor.White));
+            Assert.That(controller.CurrentTurn, Is.EqualTo(StoneColor.Black));
+            Assert.That(controller.Board.CountStones(StoneColor.Empty), Is.EqualTo(58));
+            AssertDisplayMatchesBoard();
+        }
+
+        private IEnumerator WaitForCpu()
+        {
+            float deadline = Time.realtimeSinceStartup + 25f;
+            while (controller.IsCpuThinking)
+            {
+                Assert.That(Time.realtimeSinceStartup, Is.LessThan(deadline), "CPU turns must complete.");
+                yield return null;
+            }
+
+            Assert.That(controller.CurrentTurn, Is.Not.EqualTo(StoneColor.White));
+        }
+
+        private void AssertCpuMoveMatchesLegalWhiteMove(
+            StoneColor[,] beforeCpu, IReadOnlyList<BoardPosition> legalMoves)
+        {
+            var placedPositions = new List<BoardPosition>();
+            for (int row = 0; row < BoardState.Size; row++)
+            {
+                for (int column = 0; column < BoardState.Size; column++)
+                {
+                    var position = new BoardPosition(row, column);
+                    if (beforeCpu[row, column] == StoneColor.Empty
+                        && controller.Board.GetStone(position) == StoneColor.White)
+                    {
+                        placedPositions.Add(position);
+                    }
+                }
+            }
+
+            Assert.That(placedPositions.Count, Is.EqualTo(1), "The CPU must place exactly one stone.");
+            CollectionAssert.Contains(legalMoves, placedPositions[0]);
+            var expectedGame = new OthelloGame(new BoardState(beforeCpu), StoneColor.White);
+            Assert.That(expectedGame.TryPlaceStone(placedPositions[0], StoneColor.White), Is.True);
+            CollectionAssert.AreEqual(Snapshot(expectedGame.Board), Snapshot(controller.Board));
+        }
+
+        private static StoneColor[,] Snapshot(BoardState board)
+        {
+            var cells = new StoneColor[BoardState.Size, BoardState.Size];
+            for (int row = 0; row < BoardState.Size; row++)
+            {
+                for (int column = 0; column < BoardState.Size; column++)
+                {
+                    cells[row, column] = board.GetStone(new BoardPosition(row, column));
+                }
+            }
+
+            return cells;
         }
 
         private IEnumerator ClickCell(BoardPosition position)

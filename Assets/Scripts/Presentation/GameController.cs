@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 
 namespace Othello
@@ -7,16 +8,20 @@ namespace Othello
     {
         [SerializeField] private BoardView boardView;
         [SerializeField] private BoardInput boardInput;
+        [SerializeField, Min(0f)] private float cpuMoveDelay = 0.3f;
 
         private OthelloGame game;
+        private CpuTurnRunner cpuTurnRunner;
+        private Coroutine cpuRoutine;
 
         public BoardState Board => game.Board;
         public StoneColor CurrentTurn => game.CurrentTurn;
         public bool IsGameOver => game.IsGameOver;
         public StoneColor LastPassedColor => game.LastPassedColor;
+        public bool IsCpuThinking => cpuRoutine != null;
 
         private bool CanAcceptPlayerInput => game != null && !game.IsGameOver
-            && game.CurrentTurn == StoneColor.Black;
+            && game.CurrentTurn == StoneColor.Black && !IsCpuThinking;
 
         private void Awake()
         {
@@ -28,7 +33,8 @@ namespace Othello
             }
 
             game = new OthelloGame();
-            boardView.Render(game.Board);
+            cpuTurnRunner = new CpuTurnRunner(new RandomCpuPlayer(), Mathf.Max(0f, cpuMoveDelay));
+            RefreshBoard();
         }
 
         private void OnEnable()
@@ -39,11 +45,17 @@ namespace Othello
             }
 
             boardInput.CellClicked += HandleCellClicked;
-            boardInput.SetInputEnabled(CanAcceptPlayerInput);
+            ContinueGame();
         }
 
         private void OnDisable()
         {
+            if (cpuRoutine != null)
+            {
+                StopCoroutine(cpuRoutine);
+                cpuRoutine = null;
+            }
+
             if (boardInput != null)
             {
                 boardInput.CellClicked -= HandleCellClicked;
@@ -63,9 +75,30 @@ namespace Othello
                 return false;
             }
 
-            boardView.Render(game.Board);
-            boardInput.SetInputEnabled(CanAcceptPlayerInput);
+            RefreshBoard();
+            ContinueGame();
             return true;
+        }
+
+        private void ContinueGame()
+        {
+            boardInput.SetInputEnabled(CanAcceptPlayerInput);
+            if (!game.IsGameOver && game.CurrentTurn == StoneColor.White && cpuRoutine == null)
+            {
+                cpuRoutine = StartCoroutine(PlayCpuTurns());
+            }
+        }
+
+        private IEnumerator PlayCpuTurns()
+        {
+            yield return cpuTurnRunner.Run(game, RefreshBoard);
+            cpuRoutine = null;
+            boardInput.SetInputEnabled(CanAcceptPlayerInput);
+        }
+
+        private void RefreshBoard()
+        {
+            boardView.Render(game.Board);
         }
 
         private void HandleCellClicked(BoardPosition position)

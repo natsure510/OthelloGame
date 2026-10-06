@@ -461,6 +461,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Othello.Unity::Othello.GameController
   boardView: {fileID: 1800000002}
   boardInput: {fileID: 1800000003}
+  cpuMoveDelay: 0.3
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
